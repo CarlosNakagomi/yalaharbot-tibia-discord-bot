@@ -12,11 +12,11 @@ from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.DEBUG)
 
-# Añadir la ruta del proyecto para que Python pueda encontrar el módulo `YalaharBot2`
+# Añadir la ruta del proyecto para que Python pueda encontrar los módulos locales.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Configuración de Django - establecer la variable DJANGO_SETTINGS_MODULE antes de importar Django
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "YalaharBot2.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 import django
 django.setup()

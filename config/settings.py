@@ -52,7 +52,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'YalaharBot2.urls'
+ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
@@ -70,7 +70,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'YalaharBot2.wsgi.application'
+WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # Database
@@ -143,5 +143,4 @@ frontend_static = BASE_DIR / 'frontend' / 'build' / 'static'
 STATICFILES_DIRS = [frontend_static] if frontend_static.exists() else []
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-
 
