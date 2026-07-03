@@ -22,7 +22,8 @@ db.sqlite3
 .pnp.js
 
 # frontend output
-/frontend/build/
+/frontend/.next/
+/frontend/out/
 /build/
 
 # misc

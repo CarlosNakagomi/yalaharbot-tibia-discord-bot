@@ -1,9 +1,28 @@
 from rest_framework import viewsets, status
-from .models import DiscordUser, Character, DiscordUserAndCharacters
-from .serializers import DiscordUserSerializer, CharacterSerializer, DiscordUserAndCharactersSerializer
-from django.views.generic import TemplateView
+from .models import (
+    DiscordUser,
+    Character,
+    CharacterDeath,
+    DiscordServerSettings,
+    DiscordUserAndCharacters,
+    WatchedGuild,
+    WatchedWorld,
+)
+from .serializers import (
+    DiscordUserSerializer,
+    CharacterSerializer,
+    CharacterDeathSerializer,
+    DiscordServerSettingsSerializer,
+    DiscordUserAndCharactersSerializer,
+    WatchedGuildSerializer,
+    WatchedWorldSerializer,
+)
 from django.views.decorators.cache import never_cache
+from django.http import Http404
+from django.shortcuts import render
+from django.template import TemplateDoesNotExist
 from rest_framework.decorators import action
+from pathlib import PurePosixPath
 import tibiapy
 from tibiapy.parsers import CharacterParser
 from rest_framework.response import Response
@@ -52,7 +71,36 @@ class DiscordUserAndCharactersViewSet(viewsets.ModelViewSet):
     queryset = DiscordUserAndCharacters.objects.all()
     serializer_class = DiscordUserAndCharactersSerializer
 
-# Serve React App
-index = never_cache(TemplateView.as_view(template_name='index.html'))
+
+class CharacterDeathViewSet(viewsets.ModelViewSet):
+    queryset = CharacterDeath.objects.select_related('character').all()
+    serializer_class = CharacterDeathSerializer
+
+
+class DiscordServerSettingsViewSet(viewsets.ModelViewSet):
+    queryset = DiscordServerSettings.objects.all()
+    serializer_class = DiscordServerSettingsSerializer
+
+
+class WatchedWorldViewSet(viewsets.ModelViewSet):
+    queryset = WatchedWorld.objects.select_related('settings').all()
+    serializer_class = WatchedWorldSerializer
+
+
+class WatchedGuildViewSet(viewsets.ModelViewSet):
+    queryset = WatchedGuild.objects.select_related('settings').all()
+    serializer_class = WatchedGuildSerializer
+
+@never_cache
+def next_app(request, path=''):
+    route = PurePosixPath(path.strip('/'))
+    if '..' in route.parts:
+        raise Http404('Route not found')
+
+    template_name = 'index.html' if not path else f'{route.as_posix()}/index.html'
+    try:
+        return render(request, template_name)
+    except TemplateDoesNotExist as exc:
+        raise Http404('Route not found') from exc
 
 

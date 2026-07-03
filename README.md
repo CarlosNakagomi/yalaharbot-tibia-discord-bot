@@ -1,20 +1,44 @@
 # YalaharBot
 
-YalaharBot is a demo Discord bot with a Django REST backend and a React frontend for looking up and managing Tibia characters.
+YalaharBot is a Discord automation bot for Tibia servers, backed by a Django REST API and a Next.js control-panel frontend. It handles character identity, level and death alert feeds, watched worlds/guilds, and a roster console built for repeated daily use.
+
+![YalaharBot dashboard](docs/dashboard.png)
 
 ## Features
 
-- Discord slash/hybrid command support
-- Django REST API for Discord users and Tibia characters
-- React + Tailwind frontend
-- Tibia character lookup through `tibiapy`
-- Environment-based configuration
+- **Discord hybrid commands** — every command works as both a prefix (`!`) and a slash (`/`) command.
+- **Character identity** — link Tibia characters to a Discord account and look them up on demand.
+- **Level alerts** — a background task refreshes tracked characters every 15 minutes and posts level gains to a configured channel.
+- **Death feed** — remembers deaths pulled from Tibia.com and reports new ones.
+- **Watched worlds & guilds** — per-server tracking of Tibia worlds and guilds.
+- **Leaderboards** — highest tracked levels and recent deaths across the roster.
+- **Django REST API** — full CRUD over users, characters, deaths, server settings, and watched targets.
+- **Next.js + Tailwind frontend** — control-panel dashboard, character manager, and per-module pages.
+- Tibia data via [`tibia.py`](https://tibiapy.readthedocs.io/), environment-based configuration.
+
+## Discord commands
+
+| Command | Description |
+| --- | --- |
+| `/add <character>` | Link Tibia character(s) to your Discord account (select-menu UI). |
+| `/lookup <character>` | Look up a Tibia character. |
+| `/mychars` | Show characters linked to your account. |
+| `/whois <user>` | Show characters linked to another Discord user. |
+| `/refresh` | Refresh your linked characters and report level/death changes. |
+| `/deaths <character>` | Show recent remembered deaths for a character. |
+| `/setalerts <#channel>` | Set the channel for automatic alerts (requires **Manage Server**). |
+| `/watchworld <world>` / `/unwatchworld <world>` | Watch / unwatch a Tibia world (Manage Server). |
+| `/watchguild <guild>` / `/unwatchguild <guild>` | Watch / unwatch a Tibia guild (Manage Server). |
+| `/watched` | Show watched worlds and guilds for this server. |
+| `/online <world>` | Show current online players for a world. |
+| `/guild <guild>` | Look up a Tibia guild. |
+| `/leaderboard` | Show tracked-character leaderboards. |
 
 ## Requirements
 
-- Python 3.12+
-- Node.js and npm
-- A Discord bot token
+- Python 3.12+ (project pins Django 6, discord.py 2.7)
+- Node.js and npm (Next.js 16, React 19)
+- A Discord bot token — with the **Message Content Intent** enabled in the Discord Developer Portal for prefix commands to work.
 
 ## Backend setup
 
@@ -31,6 +55,8 @@ Edit `.env` and replace the placeholder values. The default example uses SQLite 
 python manage.py migrate
 python manage.py runserver
 ```
+
+The API is served at the project root (e.g. `/api/characters/`, `/api/watched-worlds/`); Django admin lives at `/admin/`.
 
 ## Frontend setup
 
@@ -49,6 +75,8 @@ cd ..
 python manage.py collectstatic
 ```
 
+Django serves the exported Next.js app from `frontend/out` in `DEBUG` mode and falls back to it for non-API routes.
+
 ## Run the Discord bot
 
 Set `DISCORD_BOT_TOKEN` in `.env`, then run:
@@ -57,7 +85,14 @@ Set `DISCORD_BOT_TOKEN` in `.env`, then run:
 python bot\run_bot.py
 ```
 
-Set `TEST_GUILD_ID` in `.env` if you want Discord commands synced to one test server first.
+Set `TEST_GUILD_ID` in `.env` to sync commands to a single test server first (instant), instead of a global sync (can take up to an hour to propagate).
+
+## Tests
+
+```powershell
+python manage.py test          # Django / bot backend
+cd frontend; npm test          # Vitest frontend
+```
 
 ## Public repo notes
 

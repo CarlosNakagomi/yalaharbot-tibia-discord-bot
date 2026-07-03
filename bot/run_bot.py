@@ -3,7 +3,7 @@ import sys
 import asyncio
 import logging
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
 # Importar directamente el comando desde `add_command.py`
@@ -21,6 +21,9 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 import django
 django.setup()
 from bot.commands.add_command import add
+from bot.commands.lookup_command import setup as setup_lookup_commands
+from bot.commands.server_command import setup as setup_server_commands
+from bot.utils import refresh_all_tracked_characters, refresh_character
 
 # Cargar variables de entorno
 load_dotenv()
@@ -31,10 +34,53 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Registrar el comando directamente
 bot.add_command(add)
+setup_lookup_commands(bot)
+setup_server_commands(bot)
+
+
+async def send_alerts_for_result(result):
+    if result.character.level <= result.previous_level and not result.new_deaths:
+        return
+
+    settings, _ = await refresh_all_tracked_characters()
+    for server_settings in settings:
+        channel = bot.get_channel(int(server_settings.alert_channel_id))
+        if channel is None:
+            logging.error("Alert channel %s was not found.", server_settings.alert_channel_id)
+            continue
+
+        lines = []
+        if result.character.level > result.previous_level:
+            lines.append(
+                f"{result.character.name} reached level {result.character.level} "
+                f"(was {result.previous_level})."
+            )
+        for death in result.new_deaths:
+            lines.append(f"{result.character.name} died at level {death.level} to {death.killers}.")
+
+        await channel.send("\n".join(lines))
+
+
+@tasks.loop(minutes=15)
+async def tracked_character_alerts():
+    _, character_ids = await refresh_all_tracked_characters()
+    for character_id in character_ids:
+        try:
+            result = await refresh_character(character_id)
+            await send_alerts_for_result(result)
+        except Exception as e:
+            logging.error("Error refreshing character %s: %s", character_id, e, exc_info=True)
+
+
+@tracked_character_alerts.before_loop
+async def before_tracked_character_alerts():
+    await bot.wait_until_ready()
 
 @bot.event
 async def on_ready():
     print(f'{bot.user} se ha conectado a Discord!')
+    if not tracked_character_alerts.is_running():
+        tracked_character_alerts.start()
     try:
         guild_id = os.getenv('TEST_GUILD_ID')
         if guild_id:
