@@ -8,7 +8,9 @@ const TibiaCharacter = () => {
 
   const fetchCharacterData = async () => {
     try {
-      const response = await axios.get(`/api/characters/fetch_tibia_data/?name=${characterName}`);
+      const response = await axios.get(
+        `/api/characters/fetch_tibia_data/?name=${encodeURIComponent(characterName)}`
+      );
       setCharacterData(response.data);
       setError('');
     } catch (err) {
@@ -42,10 +44,10 @@ const TibiaCharacter = () => {
           <p>Last Login: {characterData.last_login}</p>
           <p>Other Characters: </p>
           <ul className="list-disc list-inside">
-        {characterData.other_characters.map((charName, index) => (
-          <li key={index}>{charName}</li>
-        ))}
-      </ul>
+            {(characterData.other_characters ?? []).map((charName, index) => (
+              <li key={index}>{charName}</li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

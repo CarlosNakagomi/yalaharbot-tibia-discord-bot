@@ -8,6 +8,11 @@ export default defineConfig(({ command }) => ({
     outDir: 'build',
     assetsDir: 'assets',
   },
+  server: {
+    proxy: {
+      '/api': 'http://127.0.0.1:8000',
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
