@@ -37,7 +37,7 @@ python manage.py runserver
 ```powershell
 cd frontend
 npm install
-npm start
+npm run dev
 ```
 
 To build the frontend for Django to serve:

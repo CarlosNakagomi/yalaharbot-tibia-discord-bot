@@ -139,8 +139,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATIC_URL = '/static/'
 
-frontend_static = BASE_DIR / 'frontend' / 'build' / 'static'
-STATICFILES_DIRS = [frontend_static] if frontend_static.exists() else []
+frontend_build = BASE_DIR / 'frontend' / 'build'
+STATICFILES_DIRS = [frontend_build] if frontend_build.exists() else []
 
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-
