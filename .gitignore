@@ -42,3 +42,5 @@ yarn-error.log*
 
 # testing
 /coverage/
+docs/dashboard-redesign-plan.md
+AGENTS.md
