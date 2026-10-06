@@ -78,3 +78,63 @@ class WatchedGuild(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class EnemyListConfiguration(models.Model):
+    """Singleton configuration for the web enemy-list application."""
+
+    selected_world = models.CharField(max_length=50, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.selected_world or "No world configured"
+
+
+class EnemyGuild(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class EnemyOnlineState(models.Model):
+    """Last observed state for a monitored character in one monitor context."""
+
+    monitor_type = models.CharField(max_length=10, default="enemy")
+    world = models.CharField(max_length=50)
+    world_key = models.CharField(max_length=50)
+    character_name = models.CharField(max_length=100)
+    character_key = models.CharField(max_length=100)
+    is_online = models.BooleanField(default=False)
+    session_started_at = models.DateTimeField(null=True, blank=True)
+    last_observed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["monitor_type", "world_key", "character_key"],
+                name="unique_monitored_online_state",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.character_name} on {self.world} ({self.monitor_type})"
+
+
+class EnemyObservation(models.Model):
+    """A plain-text observation keyed by a case-folded character name."""
+
+    character_name = models.CharField(max_length=100)
+    character_key = models.CharField(max_length=100, unique=True)
+    observation = models.TextField(max_length=2000)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["character_name"]
+
+    def __str__(self):
+        return self.character_name

@@ -3,6 +3,8 @@ import tibiapy
 from dataclasses import dataclass
 from hashlib import sha256
 from tibiapy.parsers import CharacterParser, GuildParser, WorldParser
+from tibiapy.enums import Vocation
+from tibiapy.utils import clean_text, parse_tibiacom_content
 from bot.models import (
     DiscordUser,
     Character,
@@ -11,7 +13,10 @@ from bot.models import (
     DiscordUserAndCharacters,
     WatchedGuild,
     WatchedWorld,
+    EnemyOnlineState,
 )
+from django.db import transaction
+from django.utils import timezone
 from asgiref.sync import sync_to_async
 
 
@@ -30,16 +35,188 @@ def get_character(name):
     return character
 
 
-def get_guild(name):
+def get_guild(name, timeout=15):
     url = tibiapy.urls.get_guild_url(name)
-    response = requests.get(url)
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
     return GuildParser.from_content(response.text)
 
 
-def get_world(name):
+def get_world(name, timeout=15):
     url = tibiapy.urls.get_world_url(name)
-    response = requests.get(url)
-    return WorldParser.from_content(response.text)
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    try:
+        return WorldParser.from_content(response.text)
+    except ValueError:
+        # Tibia.py models intentionally validate vocation names. If Tibia adds a
+        # vocation before the library is updated, preserve its real label while
+        # allowing the rest of the world page to be parsed normally.
+        sanitized_content, unknown_vocations = _sanitize_unknown_online_vocations(response.text)
+        if not unknown_vocations:
+            raise
+        world = WorldParser.from_content(sanitized_content)
+        return _restore_unknown_online_vocations(world, unknown_vocations)
+
+
+def _sanitize_unknown_online_vocations(content):
+    parsed_content = parse_tibiacom_content(content)
+    known_vocations = {vocation.value for vocation in Vocation}
+    unknown_vocations = {}
+
+    for row in parsed_content.select("tr.Odd, tr.Even"):
+        columns = row.select("td")
+        if len(columns) != 3:
+            continue
+        name, level, vocation = (clean_text(column) for column in columns)
+        if not level.isdigit() or vocation in known_vocations:
+            continue
+        unknown_vocations[name.casefold()] = vocation
+        columns[2].string = Vocation.NONE.value
+
+    return str(parsed_content), unknown_vocations
+
+
+def _restore_unknown_online_vocations(world, unknown_vocations):
+    if world is None:
+        return None
+
+    online_players = []
+    for player in world.online_players:
+        vocation = unknown_vocations.get(player.name.casefold())
+        online_players.append(player.model_copy(update={"vocation": vocation}) if vocation else player)
+    return world.model_copy(update={"online_players": online_players})
+
+
+def get_monitored_guild_status(world, guild_names):
+    """Match guild rosters against an already-fetched Tibia world snapshot."""
+    online_by_name = {player.name.casefold(): player for player in world.online_players}
+    monitored_players = {}
+    guild_summaries = []
+
+    for guild_name in guild_names:
+        try:
+            guild = get_guild(guild_name)
+            if guild is None:
+                raise ValueError("Guild was not found.")
+
+            members = list(guild.members)
+            matches = 0
+            for member in members:
+                player = online_by_name.get(member.name.casefold())
+                if player is None:
+                    continue
+                matches += 1
+                key = player.name.casefold()
+                monitored_player = monitored_players.setdefault(key, {
+                    "name": player.name,
+                    "level": player.level,
+                    "vocation": str(player.vocation),
+                    "guilds": [],
+                })
+                monitored_player["guilds"].append(guild.name)
+
+            guild_summaries.append({
+                "name": guild.name,
+                "world": guild.world,
+                "member_count": len(members),
+                "online_count": matches,
+                "error": None,
+            })
+        except (requests.RequestException, ValueError) as exc:
+            guild_summaries.append({
+                "name": guild_name,
+                "world": None,
+                "member_count": 0,
+                "online_count": 0,
+                "error": str(exc),
+            })
+
+    online_players = sorted(
+        monitored_players.values(), key=lambda item: (-item["level"], item["name"].casefold()),
+    )
+    return {
+        "online_count": len(online_players),
+        "players": online_players,
+        "guilds": guild_summaries,
+    }
+
+
+def get_monitored_statuses(world_name, monitor_guilds):
+    """Fetch one world snapshot and derive any number of named monitor datasets."""
+    world = get_world(world_name)
+    if world is None:
+        raise ValueError(f"World '{world_name}' was not found.")
+    return {
+        "world": world.name,
+        "world_online_count": len(world.online_players),
+        "monitors": {
+            monitor_type: get_monitored_guild_status(world, guild_names)
+            for monitor_type, guild_names in monitor_guilds.items()
+        },
+    }
+
+
+def get_online_enemies(world_name, guild_names):
+    """Backward-compatible enemy-only status using the shared matcher."""
+    payload = get_monitored_statuses(world_name, {"enemy": guild_names})
+    enemy = payload["monitors"]["enemy"]
+    return {
+        "world": payload["world"],
+        "world_online_count": payload["world_online_count"],
+        "enemy_online_count": enemy["online_count"],
+        "enemies": enemy["players"],
+        "guilds": enemy["guilds"],
+    }
+
+
+@transaction.atomic
+def track_enemy_online_sessions(world_name, enemies, observed_at=None, monitor_type="enemy"):
+    """Attach observed-online timestamps within an enemy/friend monitor context."""
+    observed_at = observed_at or timezone.now()
+    world_key = world_name.casefold()
+    online_keys = []
+    states = {}
+
+    for enemy in enemies:
+        character_key = enemy["name"].casefold()
+        online_keys.append(character_key)
+        state, created = EnemyOnlineState.objects.select_for_update().get_or_create(
+            monitor_type=monitor_type,
+            world_key=world_key,
+            character_key=character_key,
+            defaults={
+                "world": world_name,
+                "character_name": enemy["name"],
+                "is_online": True,
+                "session_started_at": observed_at,
+            },
+        )
+        if not created:
+            state.world = world_name
+            state.character_name = enemy["name"]
+            if not state.is_online:
+                state.is_online = True
+                state.session_started_at = observed_at
+            elif state.session_started_at is None:
+                # Upgrade legacy/unknown active states on their first successful
+                # observation under observed-online timing semantics.
+                state.session_started_at = observed_at
+            state.save()
+        states[character_key] = state
+
+    offline_states = EnemyOnlineState.objects.select_for_update().filter(
+        monitor_type=monitor_type, world_key=world_key, is_online=True,
+    )
+    if online_keys:
+        offline_states = offline_states.exclude(character_key__in=online_keys)
+    offline_states.update(is_online=False, session_started_at=None, last_observed_at=observed_at)
+
+    return [
+        {**enemy, "online_since": states[enemy["name"].casefold()].session_started_at.isoformat()
+         if states[enemy["name"].casefold()].session_started_at else None}
+        for enemy in enemies
+    ]
 
 
 def character_names(characters):

@@ -3,8 +3,8 @@ import Image from 'next/image';
 import '../src/input.css';
 
 export const metadata = {
-  title: 'YalaharBot',
-  description: 'Dashboard for managing Tibia characters and Discord bot features.',
+  title: 'Tibia Enemy List',
+  description: 'Live enemy guild monitoring for Tibia worlds.',
   icons: {
     icon: '/favicon.ico',
     apple: '/logo192.png',
@@ -12,7 +12,7 @@ export const metadata = {
   manifest: '/manifest.json',
 };
 
-export default function RootLayout({ children }) {
+function LegacyRootLayout({ children }) {
   const navItems = [
     { href: '/', label: 'Dashboard', tag: 'Live' },
     { href: '/characters', label: 'Characters', tag: 'Core' },
@@ -102,4 +102,8 @@ export default function RootLayout({ children }) {
       </body>
     </html>
   );
+}
+
+export default function RootLayout({ children }) {
+  return <html lang="en"><body>{children}</body></html>;
 }

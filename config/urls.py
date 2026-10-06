@@ -12,6 +12,15 @@ from bot.views import (
     WatchedGuildViewSet,
     WatchedWorldViewSet,
     next_app,
+    EnemyGuildViewSet,
+    EnemyListConfigurationView,
+    EnemyStatusView,
+    EnemyObservationView,
+    CombinedMonitorStatusView,
+    HealthView,
+    SiteAccessStatusView,
+    SiteAccessLoginView,
+    SiteAccessLogoutView,
 )
 
 router = DefaultRouter()
@@ -22,9 +31,18 @@ router.register(r'api/server-settings', DiscordServerSettingsViewSet)
 router.register(r'api/discord-user-characters', DiscordUserAndCharactersViewSet)
 router.register(r'api/watched-guilds', WatchedGuildViewSet)
 router.register(r'api/watched-worlds', WatchedWorldViewSet)
+router.register(r'api/enemy-guilds', EnemyGuildViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/health/', HealthView.as_view()),
+    path('api/site-access/status/', SiteAccessStatusView.as_view()),
+    path('api/site-access/login/', SiteAccessLoginView.as_view()),
+    path('api/site-access/logout/', SiteAccessLogoutView.as_view()),
+    path('api/enemy-list/config/', EnemyListConfigurationView.as_view()),
+    path('api/enemy-list/status/', EnemyStatusView.as_view()),
+    path('api/enemy-list/observations/', EnemyObservationView.as_view()),
+    path('api/monitors/status/', CombinedMonitorStatusView.as_view()),
     path('', include(router.urls)),  # Servir las rutas de la API en la raíz.
 ]
 

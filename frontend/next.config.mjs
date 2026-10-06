@@ -4,10 +4,7 @@ export default function nextConfig(phase) {
   const isDevServer = phase === PHASE_DEVELOPMENT_SERVER;
 
   return {
-    ...(!isDevServer && {
-      output: 'export',
-    }),
-    assetPrefix: process.env.NODE_ENV === 'production' ? '/static' : undefined,
+    devIndicators: false,
     trailingSlash: true,
     ...(isDevServer && {
       async rewrites() {

@@ -2,3 +2,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html { color-scheme: dark; }
+body { margin: 0; background: #090909; }
+button, input { font: inherit; }

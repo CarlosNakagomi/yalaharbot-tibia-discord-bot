@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { apiFetch } from '../api';
 
 const endpoints = {
   characters: '/api/characters/',
@@ -28,7 +29,7 @@ const modules = [
 ];
 
 async function fetchJson(url) {
-  const response = await fetch(url);
+  const response = await apiFetch(url);
   if (!response.ok) {
     throw new Error(`Request failed: ${url}`);
   }

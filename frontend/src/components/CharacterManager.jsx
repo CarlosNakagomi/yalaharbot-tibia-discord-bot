@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import axios from 'axios';
+import { apiUrl } from '../api';
 
 const botModules = [
   { label: 'Death Alerts', state: 'armed', detail: 'Posts tracked character deaths to the alert channel.' },
@@ -61,7 +62,8 @@ const TibiaCharacter = () => {
     setLoading(true);
     try {
       const response = await axios.get(
-        `/api/characters/fetch_tibia_data/?name=${encodeURIComponent(characterName.trim())}`
+        apiUrl(`/api/characters/fetch_tibia_data/?name=${encodeURIComponent(characterName.trim())}`),
+        { withCredentials: true },
       );
       setCharacterData(response.data);
       setError('');

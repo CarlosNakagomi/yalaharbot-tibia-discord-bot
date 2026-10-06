@@ -1,5 +1,5 @@
-import Home from '../src/components/Home';
+import EnemyDashboard from '../src/components/EnemyDashboard';
 
 export default function HomePage() {
-  return <Home />;
+  return <EnemyDashboard />;
 }

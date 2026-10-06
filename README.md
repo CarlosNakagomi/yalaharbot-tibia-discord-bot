@@ -1,4 +1,17 @@
-# YalaharBot
+# Tibia Enemy List
+
+This fork turns YalaharBot into a web-first enemy tracker. Configure one Tibia world, add enemy guilds, and run a live scan. The Django API uses the existing `tibia.py` parsers to fetch guild rosters and the world's online list, then the frontend displays the roster members currently online.
+
+## Enemy-list workflow
+
+1. Start the Django backend and Next.js frontend using the setup below.
+2. Enter and save a Tibia world.
+3. Add one or more enemy guild names.
+4. Select **Refresh enemies** to fetch live Tibia data and cross-reference the rosters.
+
+The main endpoints are `/api/enemy-list/config/`, `/api/enemy-guilds/`, and `/api/enemy-list/status/`. The original Discord bot code and APIs remain available for compatibility.
+
+## Original YalaharBot foundation
 
 YalaharBot is a Discord automation bot for Tibia servers, backed by a Django REST API and a Next.js control-panel frontend. It handles character identity, level and death alert feeds, watched worlds/guilds, and a roster console built for repeated daily use.
 

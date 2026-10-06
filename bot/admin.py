@@ -8,6 +8,8 @@ from bot.models import (
     DiscordUserAndCharacters,
     WatchedGuild,
     WatchedWorld,
+    EnemyGuild,
+    EnemyListConfiguration,
 )
 
 admin.site.register(DiscordUser)
@@ -17,3 +19,5 @@ admin.site.register(CharacterDeath)
 admin.site.register(DiscordServerSettings)
 admin.site.register(WatchedGuild)
 admin.site.register(WatchedWorld)
+admin.site.register(EnemyGuild)
+admin.site.register(EnemyListConfiguration)
