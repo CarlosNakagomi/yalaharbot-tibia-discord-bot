@@ -2,9 +2,10 @@ from asgiref.sync import async_to_sync
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from django.conf import settings
 import json
+import requests
 from pathlib import Path
 from config.database import database_from_environment
 
@@ -225,6 +226,88 @@ class EnemyListTests(TestCase):
         self.assertEqual(world.online_players[0].vocation, "Future Vocation")
         self.assertEqual(from_content.call_count, 2)
         self.assertIn("<td>None</td>", from_content.call_args_list[1].args[0])
+
+    @patch("bot.utils._tibia_com_blocked_until", 0.0)
+    @patch("bot.utils.WorldParser.from_content")
+    @patch("bot.utils.requests.get")
+    def test_world_request_uses_production_headers_and_tibiapy_parser(
+        self, requests_get, from_content,
+    ):
+        response = MagicMock(status_code=200, text="<html>world</html>")
+        requests_get.return_value = response
+        from_content.return_value = TibiaWorld("Monstera", [])
+
+        world = get_world("Monstera")
+
+        self.assertEqual(world.name, "Monstera")
+        request_kwargs = requests_get.call_args.kwargs
+        self.assertEqual(request_kwargs["timeout"], 15)
+        self.assertIn("Mozilla/5.0", request_kwargs["headers"]["User-Agent"])
+        self.assertIn("Accept-Language", request_kwargs["headers"])
+        from_content.assert_called_once_with("<html>world</html>")
+
+    @patch("bot.utils._tibia_com_blocked_until", 0.0)
+    @patch("bot.utils.requests.get")
+    def test_cloudflare_403_uses_tibiadata_and_one_shared_world_snapshot(self, requests_get):
+        forbidden = MagicMock(status_code=403)
+        forbidden.raise_for_status.side_effect = requests.HTTPError(response=forbidden)
+
+        world_response = MagicMock(status_code=200)
+        world_response.json.return_value = {
+            "world": {
+                "name": "Monstera",
+                "online_players": [
+                    {"name": "Enemy Knight", "level": 900, "vocation": "Elite Knight"},
+                    {"name": "Friendly Knight", "level": 1000, "vocation": "Elite Knight"},
+                ],
+            },
+        }
+        enemy_guild_response = MagicMock(status_code=200)
+        enemy_guild_response.json.return_value = {
+            "guild": {
+                "name": "Watch The Throne", "world": "Monstera",
+                "members": [{"name": "Enemy Knight"}],
+            },
+        }
+        friend_guild_response = MagicMock(status_code=200)
+        friend_guild_response.json.return_value = {
+            "guild": {
+                "name": "Unfallen", "world": "Monstera",
+                "members": [{"name": "Friendly Knight"}],
+            },
+        }
+        requests_get.side_effect = [
+            forbidden, world_response, enemy_guild_response, friend_guild_response,
+        ]
+
+        result = get_monitored_statuses(
+            "Monstera", {"enemy": ["Watch The Throne"], "friend": ["Unfallen"]},
+        )
+
+        self.assertEqual(
+            [player["name"] for player in result["monitors"]["enemy"]["players"]],
+            ["Enemy Knight"],
+        )
+        self.assertEqual(
+            [player["name"] for player in result["monitors"]["friend"]["players"]],
+            ["Friendly Knight"],
+        )
+        requested_urls = [call.args[0] for call in requests_get.call_args_list]
+        self.assertEqual(sum("subtopic=worlds" in url for url in requested_urls), 1)
+        self.assertEqual(sum("api.tibiadata.com/v4/world/Monstera" in url for url in requested_urls), 1)
+        self.assertEqual(len(requested_urls), 4)
+
+    @patch("bot.utils._tibia_com_blocked_until", 0.0)
+    @patch("bot.utils.requests.get")
+    def test_non_403_tibia_error_is_not_hidden_by_fallback(self, requests_get):
+        unavailable = MagicMock(status_code=503)
+        unavailable.raise_for_status.side_effect = requests.HTTPError(response=unavailable)
+        requests_get.return_value = unavailable
+
+        with self.assertRaises(requests.HTTPError):
+            get_world("Monstera")
+
+        self.assertEqual(requests_get.call_count, 1)
 
     def test_configuration_and_guild_api(self):
         response = self.client.put(

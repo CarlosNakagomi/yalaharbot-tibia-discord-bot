@@ -1,7 +1,11 @@
 import requests
 import tibiapy
+import os
+import time
 from dataclasses import dataclass
 from hashlib import sha256
+from types import SimpleNamespace
+from urllib.parse import quote
 from tibiapy.parsers import CharacterParser, GuildParser, WorldParser
 from tibiapy.enums import Vocation
 from tibiapy.utils import clean_text, parse_tibiacom_content
@@ -27,6 +31,71 @@ class CharacterRefreshResult:
     new_deaths: list[CharacterDeath]
 
 
+TIBIA_COM_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 YalaharBot/1.0",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+}
+TIBIADATA_HEADERS = {
+    "User-Agent": "YalaharBot/1.0 (+https://github.com/CarlosNakagomi/yalaharbot-tibia-discord-bot)",
+    "Accept": "application/json",
+}
+TIBIADATA_BASE_URL = "https://api.tibiadata.com/v4"
+_tibia_com_blocked_until = 0.0
+
+
+def _tibia_com_is_blocked():
+    return time.monotonic() < _tibia_com_blocked_until
+
+
+def _mark_tibia_com_blocked():
+    global _tibia_com_blocked_until
+    retry_seconds = int(os.getenv("TIBIA_COM_RETRY_SECONDS", "900"))
+    _tibia_com_blocked_until = time.monotonic() + max(60, retry_seconds)
+
+
+def _get_tibia_com(url, timeout):
+    response = requests.get(url, timeout=timeout, headers=TIBIA_COM_HEADERS)
+    try:
+        response.raise_for_status()
+    except requests.HTTPError:
+        if response.status_code == 403:
+            _mark_tibia_com_blocked()
+        raise
+    return response
+
+
+def _get_tibiadata(path, timeout):
+    response = requests.get(f"{TIBIADATA_BASE_URL}/{path}", timeout=timeout, headers=TIBIADATA_HEADERS)
+    response.raise_for_status()
+    payload = response.json()
+    if payload.get("information", {}).get("status", {}).get("http_code") not in (None, 200):
+        raise ValueError("TibiaData could not retrieve the requested Tibia.com resource.")
+    return payload
+
+
+def _get_tibiadata_world(name, timeout):
+    world = _get_tibiadata(f"world/{quote(name, safe='')}", timeout).get("world")
+    if not world:
+        return None
+    players = [
+        SimpleNamespace(name=player["name"], level=player["level"], vocation=player["vocation"])
+        for player in world.get("online_players", [])
+    ]
+    return SimpleNamespace(name=world["name"], online_players=players)
+
+
+def _get_tibiadata_guild(name, timeout):
+    guild = _get_tibiadata(f"guild/{quote(name, safe='')}", timeout).get("guild")
+    if not guild:
+        return None
+    members = [SimpleNamespace(name=member["name"]) for member in guild.get("members", [])]
+    return SimpleNamespace(name=guild["name"], world=guild["world"], members=members)
+
+
 def get_character(name):
     url = tibiapy.urls.get_character_url(name)
     r = requests.get(url)
@@ -36,16 +105,28 @@ def get_character(name):
 
 
 def get_guild(name, timeout=15):
+    if _tibia_com_is_blocked():
+        return _get_tibiadata_guild(name, timeout)
     url = tibiapy.urls.get_guild_url(name)
-    response = requests.get(url, timeout=timeout)
-    response.raise_for_status()
+    try:
+        response = _get_tibia_com(url, timeout)
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 403:
+            return _get_tibiadata_guild(name, timeout)
+        raise
     return GuildParser.from_content(response.text)
 
 
 def get_world(name, timeout=15):
+    if _tibia_com_is_blocked():
+        return _get_tibiadata_world(name, timeout)
     url = tibiapy.urls.get_world_url(name)
-    response = requests.get(url, timeout=timeout)
-    response.raise_for_status()
+    try:
+        response = _get_tibia_com(url, timeout)
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 403:
+            return _get_tibiadata_world(name, timeout)
+        raise
     try:
         return WorldParser.from_content(response.text)
     except ValueError:
