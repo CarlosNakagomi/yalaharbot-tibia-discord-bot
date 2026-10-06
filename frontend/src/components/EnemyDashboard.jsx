@@ -38,7 +38,7 @@ function VocationColumn({ group, players, now, notes, copiedName, onCopy, onOpen
         const observation = notes[enemy.name.toLocaleLowerCase()]?.observation || '';
         return <div key={enemy.name} className={`grid h-[22px] items-center gap-1 px-1.5 font-mono text-xs leading-none ${TABLE_COLUMNS}`}>
         <span className={`text-right font-bold tabular-nums ${group.level}`}>{enemy.level}</span>
-        <button type="button" onClick={() => onCopy(enemy.name)} className="min-w-0 cursor-pointer truncate text-left font-sans font-semibold text-stone-100 hover:text-red-200 hover:underline" title={`Copy Exiva &quot;${enemy.name}&quot;`}>{enemy.name}{copiedName === enemy.name && <span className="ml-1 text-[9px] font-normal text-emerald-400">Copied!</span>}</button>
+        <button type="button" onClick={() => onCopy(enemy.name)} className="min-w-0 cursor-pointer truncate text-left font-sans font-semibold text-stone-100 hover:text-red-200 hover:underline">{enemy.name}{copiedName === enemy.name && <span className="ml-1 text-[9px] font-normal text-emerald-400">Copied!</span>}</button>
         <span className="text-right text-[10px] tabular-nums text-stone-500" title="Continuously observed online duration">{formatOnlineDuration(enemy.online_since, now)}</span>
         <button type="button" onClick={() => onOpenNote(enemy)} aria-label={`Observation for ${enemy.name}`} title={observation || 'No observation'} className={`min-w-0 cursor-pointer truncate border-l border-stone-800 pl-1.5 text-left font-sans text-[10px] hover:bg-white/[0.04] hover:text-white ${observation ? 'text-stone-400' : 'text-stone-700'}`}>{observation || '—'}</button>
       </div>})}

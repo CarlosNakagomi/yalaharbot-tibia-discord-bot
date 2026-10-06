@@ -208,10 +208,12 @@ test('copies exact Exiva commands for different characters and tolerates clipboa
         { name: 'Mago Malvado', level: 900, vocation: 'Master Sorcerer', guilds: ['Enemy Guild'], online_since: new Date().toISOString() },
         { name: 'Knight Enemy', level: 800, vocation: 'Elite Knight', guilds: ['Enemy Guild'], online_since: new Date().toISOString() },
       ], guilds: [],
-    });
+  });
 
   render(<EnemyDashboard />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Mago Malvado' }));
+  const magoButton = await screen.findByRole('button', { name: 'Mago Malvado' });
+  expect(magoButton).not.toHaveAttribute('title');
+  fireEvent.click(magoButton);
   await waitFor(() => expect(writeText).toHaveBeenCalledWith('Exiva "Mago Malvado"'));
   fireEvent.click(screen.getByRole('button', { name: 'Knight Enemy' }));
   await waitFor(() => expect(writeText).toHaveBeenCalledWith('Exiva "Knight Enemy"'));
